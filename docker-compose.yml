@@ -6,14 +6,12 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "47110:8080"
     volumes:
       - ./config.yaml:/app/config.yaml
       - ./logs:/app/logs
     depends_on:
       - sql
-    extra_hosts:
-      - "sql:127.0.0.1"
     command: [
       "sh",
       "-c",
@@ -26,7 +24,5 @@ services:
       MYSQL_DATABASE: vmq
       MYSQL_USER: vmq
       MYSQL_PASSWORD: password
-    ports:
-      - "3306:3306"
     volumes:
       - ./mysql:/var/lib/mysql
