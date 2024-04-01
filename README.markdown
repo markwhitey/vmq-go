@@ -4,7 +4,7 @@
 
 ## 介绍
 
-参考 [V 免签](https://github.com/szvone/vmqphp) PHP 版本，使用 Go 语言实现的 V 免签服务端。
+参考 [V 免签](https://github.com/szvone/Vmq) PHP 版本，使用 Go 语言实现的 V 免签服务端。
 
 ## 特点
 
@@ -26,4 +26,4 @@
 
 ## 致谢
 
-- [V 免签](https://github.com/szone/vmqphp)
+- [V 免签](https://github.com/szvone/Vmq)
