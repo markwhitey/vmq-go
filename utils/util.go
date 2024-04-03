@@ -70,70 +70,60 @@ func DictionaryOrderSort(m map[string]string) ([]string, map[string]string) {
 
 // SendEmailUsingSMTP 使用SMTP发送邮件
 func SendEmailUsingSMTP(subject string, body string, smtpHost string, smtpPort int, smtpUser string, smtpPassword string, smtpSender string, to string, ssl bool) error {
-	// 设置身份验证信息。
-	auth := smtp.PlainAuth(
-		"",
-		smtpUser,
-		smtpPassword,
-		smtpHost,
-	)
-	addr := fmt.Sprintf("%s:%d", smtpHost, smtpPort)
+    addr := fmt.Sprintf("%s:%d", smtpHost, smtpPort)
 
-	var err error
-	if ssl {
-		tlsconfig := &tls.Config{
-			InsecureSkipVerify: true,
-			ServerName:         smtpHost,
-		}
+    // Dial the SMTP server
+    conn, err := net.Dial("tcp", addr)
+    if err != nil {
+        return err
+    }
+    defer conn.Close()
 
-		conn, errConn := tls.Dial("tcp", addr, tlsconfig)
-		if errConn != nil {
-			return errConn
-		}
+    // Create a new SMTP client
+    c, err := smtp.NewClient(conn, smtpHost)
+    if err != nil {
+        return err
+    }
+    defer c.Quit()
 
-		c, errC := smtp.NewClient(conn, smtpHost)
-		if errC != nil {
-			return errC
-		}
-		err = c.Auth(auth)
-		if err != nil {
-			return err
-		}
-		err = c.Mail(smtpSender)
-		if err != nil {
-			return err
-		}
-		err = c.Rcpt(to)
-		if err != nil {
-			return err
-		}
+    // Start TLS if SSL is true
+    if ssl {
+        tlsconfig := &tls.Config{
+            ServerName:         smtpHost,
+            InsecureSkipVerify: true,
+        }
+        if err = c.StartTLS(tlsconfig); err != nil {
+            return err
+        }
+    }
 
-		wc, errW := c.Data()
-		if errW != nil {
-			return errW
-		}
-		defer wc.Close()
-		_, err = fmt.Fprintf(wc, "Subject: "+subject+"\r\n\r\n"+body+"\r\n")
-		if err != nil {
-			return err
-		}
-		c.Quit()
-	} else {
-		err = smtp.SendMail(
-			addr,
-			auth,
-			smtpSender,
-			[]string{to},
-			[]byte("Subject: "+subject+"\r\n\r\n"+body+"\r\n"),
-		)
+    // Auth
+    if err = c.Auth(smtp.PlainAuth("", smtpUser, smtpPassword, smtpHost)); err != nil {
+        return err
+    }
 
-		if err != nil {
-			return fmt.Errorf("发送邮件失败: %w", err)
-		}
-	}
+    // Set the sender and recipient
+    if err = c.Mail(smtpSender); err != nil {
+        return err
+    }
+    if err = c.Rcpt(to); err != nil {
+        return err
+    }
 
-	return nil
+    // Send the email body
+    wc, err := c.Data()
+    if err != nil {
+        return err
+    }
+    defer wc.Close()
+    _, err = fmt.Fprintf(wc, "Subject: %s\r\n\r\n%s\r\n", subject, body)
+    if err != nil {
+        return err
+    }
+
+    return nil
 }
+
 
 // 生成随机字符串 // 使用crypto/rand包
 func RandomString(l int) string {
