@@ -171,26 +171,29 @@ export default {
     methods: {
         // 组件方法
         onUpdate() {
-            // 更新系统设置
-            // 取出settingsCopy中的值，与settings比较，如果不同则更新
-            let data = {}
-            for (let key in this.settingsCopy) {
+            let dataToUpdate = {};
+            for (let key in this.settings) {
                 if (this.settingsCopy[key] !== this.settings[key]) {
-                    if (key === 'adminPwd') {
-                        this.settings[key] = MD5(this.settings[key]).toString()
-                        continue
+                    let value = this.settings[key];
+                    if (key === 'adminPwd' && value.trim()) {
+                        dataToUpdate[key] = MD5(value).toString();
+                    } else {
+                        dataToUpdate[key] = value;
                     }
-                    data[key] = this.settings[key]
                 }
             }
-            for (let key in data) {
-                api.updateSetting({
-                    key: key,
-                    value: data[key]
-                }).then(data => {
-                    this.getSettings()
-                })
+
+            if (Object.keys(dataToUpdate).length === 0) {
+                return;
             }
+
+            api.updateSetting(dataToUpdate).then(() => {
+                this.$message.success('设置已更新');
+                this.getSettings();
+                this.settings.adminPwd = ''; // 清空密码输入以提高安全性
+            }).catch(error => {
+                this.$message.error('更新失败，请稍后再试');
+            });
         },
         getSettings() {
             // 获取系统设置
