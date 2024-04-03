@@ -23,4 +23,4 @@ jobs:
       uses: docker/build-push-action@v2
       with:
         push: true
-        tags: bearyin/vpq:${{ github.ref_name }}
+        tags: bearyin/vmq:${{ github.ref_name }}
