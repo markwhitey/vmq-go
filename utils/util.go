@@ -92,7 +92,7 @@ func SendEmailUsingSMTP(subject string, body string, smtpHost string, smtpPort i
         tlsconfig := &tls.Config{
             ServerName: smtpHost,
             // Consider removing InsecureSkipVerify in production for better security
-            // InsecureSkipVerify: true,
+            InsecureSkipVerify: true,
         }
         if err = c.StartTLS(tlsconfig); err != nil {
             return err
