@@ -171,29 +171,37 @@ export default {
     methods: {
         // 组件方法
         onUpdate() {
-            let dataToUpdate = {};
-            for (let key in this.settings) {
-                if (this.settingsCopy[key] !== this.settings[key]) {
+            let updates = []; // 用于收集所有待更新的设置项
+
+            // 遍历settingsCopy以查找更改
+            for (let key in this.settingsCopy) {
+                // 检查是否有更改，并且排除空值
+                if (this.settingsCopy[key] !== this.settings[key] && this.settings[key] !== '') {
                     let value = this.settings[key];
+
+                    // 如果是管理员密码，使用MD5进行加密
                     if (key === 'adminPwd' && value.trim()) {
-                        dataToUpdate[key] = MD5(value).toString();
-                    } else {
-                        dataToUpdate[key] = value;
+                        value = MD5(value).toString();
                     }
+
+                    // 收集待更新的项
+                    updates.push({ key, value });
                 }
             }
 
-            if (Object.keys(dataToUpdate).length === 0) {
-                return;
-            }
-
-            api.updateSetting(dataToUpdate).then(() => {
-                this.$message.success('设置已更新');
-                this.getSettings();
-                this.settings.adminPwd = ''; // 清空密码输入以提高安全性
-            }).catch(error => {
-                this.$message.error('更新失败，请稍后再试');
+            // 对每个更改进行单独的更新请求
+            updates.forEach(update => {
+                api.updateSetting(update).then(() => {
+                    this.$message.success('设置已更新');
+                    this.getSettings();
+                }).catch(error => {
+                    this.$message.error('更新失败，请稍后再试');
+                });
             });
+
+            if (updates.length === 0) {
+                this.$message.info('没有变化，无需更新');
+            }
         },
         getSettings() {
             // 获取系统设置
