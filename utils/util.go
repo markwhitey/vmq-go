@@ -87,11 +87,12 @@ func SendEmailUsingSMTP(subject string, body string, smtpHost string, smtpPort i
     }
     defer c.Quit()
 
-    // Start TLS if SSL is true
+    // Start TLS if required
     if ssl {
         tlsconfig := &tls.Config{
-            ServerName:         smtpHost,
-            InsecureSkipVerify: true,
+            ServerName: smtpHost,
+            // Consider removing InsecureSkipVerify in production for better security
+            // InsecureSkipVerify: true,
         }
         if err = c.StartTLS(tlsconfig); err != nil {
             return err
@@ -99,7 +100,8 @@ func SendEmailUsingSMTP(subject string, body string, smtpHost string, smtpPort i
     }
 
     // Auth
-    if err = c.Auth(smtp.PlainAuth("", smtpUser, smtpPassword, smtpHost)); err != nil {
+    auth := smtp.PlainAuth("", smtpUser, smtpPassword, smtpHost)
+    if err = c.Auth(auth); err != nil {
         return err
     }
 
@@ -117,7 +119,7 @@ func SendEmailUsingSMTP(subject string, body string, smtpHost string, smtpPort i
         return err
     }
     defer wc.Close()
-    _, err = fmt.Fprintf(wc, "Subject: %s\r\n\r\n%s\r\n", subject, body)
+    _, err = fmt.Fprintf(wc, "From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=\"utf-8\"\r\n\r\n%s", smtpSender, to, subject, body)
     if err != nil {
         return err
     }
