@@ -21,8 +21,6 @@ import (
 // 初始化路由
 func InitRouter(route *gin.Engine) {
 	routeGroup := route.Group("/api")
-	// 兼容djk
-	routeGroup.GET("/createOrder", createOrderGETHandler)
 	// 创建订单
 	routeGroup.POST("/order", creatOrderHandler)
 	// qrcode
@@ -46,28 +44,145 @@ func InitRouter(route *gin.Engine) {
 	routeGroup.PUT("/order/:orderId", reCallbackOrderHandler)
 }
 
-// extractGETParams 用于从GET请求中提取创建订单所需的参数
-func extractGETParams(c *gin.Context) (*CreateOrderParams, error) {
-    typeStr := c.Query("type")
-    priceStr := c.Query("price")
-    typeInt, err := strconv.Atoi(typeStr)
-    if err != nil {
-        return nil, fmt.Errorf("type error")
-    }
-    priceFloat, err := strconv.ParseFloat(priceStr, 64)
-    if err != nil {
-        return nil, fmt.Errorf("price error")
+type CreateOrderParams struct {
+	PayId     string  `json:"payId" binding:"required"`
+	Type      int     `json:"type" binding:"required"`
+	Price     float64 `json:"price" binding:"required"`
+	Sign      string  `json:"sign" binding:"required"`
+	Param     string  `json:"param"`
+	NotifyUrl string  `json:"notifyUrl"`
+	ReturnUrl string  `json:"returnUrl"`
+}
+
+func createOrderGETHandler(c *gin.Context) {
+    // 从URL查询参数中获取数据
+    var params CreateOrderParams
+    params.PayId = c.Query("payId")
+    params.Type, _ = strconv.Atoi(c.Query("type"))
+    params.Price, _ = strconv.ParseFloat(c.Query("price"), 64)
+    params.Sign = c.Query("sign")
+    params.Param = c.Query("param")
+    params.NotifyUrl = c.Query("notifyUrl")
+    params.ReturnUrl = c.Query("returnUrl")
+
+    // 调用通用的订单处理逻辑
+    processOrder(c, params)
+}
+
+func creatOrderHandler(c *gin.Context) {
+    var params CreateOrderParams
+    if c.ContentType() == "application/x-www-form-urlencoded" {
+        params.PayId = c.PostForm("payId")
+        params.Type, _ = strconv.Atoi(c.PostForm("type"))
+        params.Price, _ = strconv.ParseFloat(c.PostForm("price"), 64)
+        params.Sign = c.PostForm("sign")
+        params.Param = c.PostForm("param")
+        params.NotifyUrl = c.PostForm("notifyUrl")
+        params.ReturnUrl = c.PostForm("returnUrl")
+    } else {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  "content-type error",
+        })
+        return
     }
 
-    return &CreateOrderParams{
-        PayId:     c.Query("payId"),
-        Type:      typeInt,
-        Price:     priceFloat,
-        Sign:      c.Query("sign"),
-        Param:     c.Query("param"),
-        NotifyUrl: c.Query("notifyUrl"),
-        ReturnUrl: c.Query("returnUrl"),
-    }, nil
+    // 调用通用的订单处理逻辑
+    processOrder(c, params)
+}
+
+// processOrder 封装了创建订单的通用逻辑，可以被不同的handler共同调用
+func processOrder(c *gin.Context, params CreateOrderParams) {
+    // 检查订单是否过期
+    task.CheckOrderExpire()
+
+    // 检查心跳
+    heart := task.CheckHeart()
+    if !heart {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  "heart error",
+        })
+        return
+    }
+
+    // 参数校验
+    if params.PayId == "" || params.Type == 0 || params.Price == 0 || params.Sign == "" {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  "参数错误",
+        })
+        return
+    }
+
+    // 获取应用配置
+    appConfig, err := db.GetAppConfig()
+    if err != nil {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  "获取应用配置失败",
+        })
+        return
+    }
+
+    // 验证签名
+    sign := hash.GetMD5Hash(params.PayId + params.Param + strconv.Itoa(params.Type) + strconv.FormatFloat(params.Price, 'f', -1, 64) + appConfig.APISecret)
+    if sign != params.Sign {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  "签名错误",
+        })
+        return
+    }
+
+    // 验证订单是否存在
+    _, err = db.GetPayOrderByPayID(params.PayId)
+    if err == nil || err.Error() != "record not found" {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  "订单已存在",
+        })
+        return
+    }
+
+    // 创建订单
+    err = db.AddPayOrder(params.PayId, params.Type, params.Price, params.Param, params.NotifyUrl, params.ReturnUrl)
+    if err != nil {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  err.Error(),
+        })
+        return
+    }
+
+    // 返回创建成功的订单信息
+    order, err := db.GetPayOrderByPayID(params.PayId)
+    if err != nil {
+        c.JSON(200, gin.H{
+            "code": -1,
+            "msg":  err.Error(),
+        })
+        return
+    }
+    timeout := (order.ExpectDate - order.CreateDate) / 1000 / 60 // 分钟
+    c.JSON(200, gin.H{
+        "code": 1,
+        "msg":  "success",
+        "data": gin.H{
+            "payId":       order.PayID,
+            "orderId":     order.OrderID,
+            "payType":     order.Type,
+            "price":       order.Price,
+            "reallyPrice": order.ReallyPrice,
+            "payUrl":      order.PayURL,
+            "isAuto":      order.IsAuto,
+            "state":       order.State,
+            "createDate":  order.CreateDate,
+            "expectDate":  order.ExpectDate,
+            "timeout":     timeout,
+            "redirectUrl": fmt.Sprintf("/payment/%s", order.OrderID),
+        },
+    })
 }
 
 func qrcodeGetHandler(c *gin.Context) {
@@ -144,132 +259,6 @@ func qrcodePostHandler(c *gin.Context) {
 		return
 	}
 	c.Set("data", gin.H{"content": content})
-}
-
-type CreateOrderParams struct {
-    PayId     string  `json:"payId" form:"payId"`
-    Type      int     `json:"type" form:"type"`
-    Price     float64 `json:"price" form:"price"`
-    Sign      string  `json:"sign" form:"sign"`
-    Param     string  `json:"param" form:"param"`
-    NotifyUrl string  `json:"notifyUrl" form:"notifyUrl"`
-    ReturnUrl string  `json:"returnUrl" form:"returnUrl"`
-}
-
-func creatOrderHandler(c *gin.Context) {
-	// 检查订单是否过期
-	task.CheckOrderExpire()
-	// 检查心跳
-	heart := task.CheckHeart()
-	if !heart {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg":  "heart error",
-		})
-		return
-	}
-    // 初始化参数结构体
-    var params CreateOrderParams
-
-    // 尝试从POST表单获取参数
-    payId := c.DefaultPostForm("payId", "")
-    typeStr := c.DefaultPostForm("type", "")
-    priceStr := c.DefaultPostForm("price", "")
-    signStr := c.DefaultPostForm("sign", "")
-    param := c.DefaultPostForm("param", "")
-    notifyUrl := c.DefaultPostForm("notifyUrl", "")
-    returnUrl := c.DefaultPostForm("returnUrl", "")
-
-    // 如果POST表单中的关键参数为空，尝试从GET请求的Keys中获取
-    if payId == "" || typeStr == "" || priceStr == "" || signStr == "" {
-        payId, _ = c.Get("payId").(string)
-        typeStr, _ = c.Get("type").(string)
-        priceStr, _ = c.Get("price").(string)
-        signStr, _ = c.Get("sign").(string)
-        param, _ = c.Get("param").(string)
-        notifyUrl, _ = c.Get("notifyUrl").(string)
-        returnUrl, _ = c.Get("returnUrl").(string)
-    }
-
-    // 转换类型
-    params.PayId = payId
-    var err error
-    params.Type, err = strconv.Atoi(typeStr)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "Type conversion error"})
-        return
-    }
-
-    params.Price, err = strconv.ParseFloat(priceStr, 64)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "Price conversion error"})
-        return
-    }
-
-    params.Sign = signStr
-    params.Param = param
-    params.NotifyUrl = notifyUrl
-    params.ReturnUrl = returnUrl
-
-    // 验证签名逻辑...
-    appConfig, err := db.GetAppConfig()
-    if err != nil {
-        c.Error(err)
-        return
-    }
-    computedSign := hash.GetMD5Hash(payId + param + typeStr + priceStr + appConfig.APISecret)
-    if computedSign != params.Sign {
-        c.JSON(http.StatusOK, gin.H{"code": -1, "msg": "Sign verification failed"})
-        return
-    }
-	// 创建订单
-	// 2. 验证订单是否存在
-	_, err := db.GetPayOrderByPayID(params.PayId)
-	if err == nil || err.Error() != "record not found" {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg":  "payId is exist",
-		})
-		return
-	}
-	err = nil
-	// 3. 创建订单
-	err = db.AddPayOrder(params.PayId, params.Type, params.Price, params.Param, params.NotifyUrl, params.ReturnUrl)
-	if err != nil {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg":  err.Error(),
-		})
-		return
-	}
-	// 返回结果
-	order, err := db.GetPayOrderByPayID(params.PayId)
-	if err != nil {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg":  err.Error(),
-		})
-		return
-	}
-	timeout := (order.ExpectDate - order.CreateDate) / 1000 / 60 // 分钟
-	c.IndentedJSON(200, gin.H{
-		"code": 1,
-		"msg":  "success",
-		"data": gin.H{
-			"payId":       order.PayID,
-			"orderId":     order.OrderID,
-			"payType":     order.Type,
-			"price":       order.Price,
-			"reallyPrice": order.ReallyPrice,
-			"payUrl":      order.PayURL,
-			"isAuto":      order.IsAuto,
-			"state":       order.State,
-			"createDate":  order.CreateDate,
-			"expectDate":  order.ExpectDate,
-			"timeOut":     timeout,
-			"redirectUrl": fmt.Sprintf("/payment/%s", order.OrderID),
-		},
-	})
 }
 
 func getOrderGetHandler(c *gin.Context) {
