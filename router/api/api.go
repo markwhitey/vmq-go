@@ -21,6 +21,8 @@ import (
 // 初始化路由
 func InitRouter(route *gin.Engine) {
 	routeGroup := route.Group("/api")
+	// 兼容djk
+	routeGroup.GET("/createOrder", createOrderGETHandler)
 	// 创建订单
 	routeGroup.POST("/order", creatOrderHandler)
 	// qrcode
@@ -42,6 +44,30 @@ func InitRouter(route *gin.Engine) {
 	routeGroup.Use(middleware.AuthMiddleware())
 	// 重新回调订单
 	routeGroup.PUT("/order/:orderId", reCallbackOrderHandler)
+}
+
+// extractGETParams 用于从GET请求中提取创建订单所需的参数
+func extractGETParams(c *gin.Context) (*CreateOrderParams, error) {
+    typeStr := c.Query("type")
+    priceStr := c.Query("price")
+    typeInt, err := strconv.Atoi(typeStr)
+    if err != nil {
+        return nil, fmt.Errorf("type error")
+    }
+    priceFloat, err := strconv.ParseFloat(priceStr, 64)
+    if err != nil {
+        return nil, fmt.Errorf("price error")
+    }
+
+    return &CreateOrderParams{
+        PayId:     c.Query("payId"),
+        Type:      typeInt,
+        Price:     priceFloat,
+        Sign:      c.Query("sign"),
+        Param:     c.Query("param"),
+        NotifyUrl: c.Query("notifyUrl"),
+        ReturnUrl: c.Query("returnUrl"),
+    }, nil
 }
 
 func qrcodeGetHandler(c *gin.Context) {
@@ -121,13 +147,13 @@ func qrcodePostHandler(c *gin.Context) {
 }
 
 type CreateOrderParams struct {
-	PayId     string  `json:"payId" binding:"required"`
-	Type      int     `json:"type" binding:"required"`
-	Price     float64 `json:"price" binding:"required"`
-	Sign      string  `json:"sign" binding:"required"`
-	Param     string  `json:"param"`
-	NotifyUrl string  `json:"notifyUrl"`
-	ReturnUrl string  `json:"returnUrl"`
+    PayId     string  `json:"payId" form:"payId"`
+    Type      int     `json:"type" form:"type"`
+    Price     float64 `json:"price" form:"price"`
+    Sign      string  `json:"sign" form:"sign"`
+    Param     string  `json:"param" form:"param"`
+    NotifyUrl string  `json:"notifyUrl" form:"notifyUrl"`
+    ReturnUrl string  `json:"returnUrl" form:"returnUrl"`
 }
 
 func creatOrderHandler(c *gin.Context) {
@@ -142,69 +168,60 @@ func creatOrderHandler(c *gin.Context) {
 		})
 		return
 	}
-	// 获取参数
-	var params CreateOrderParams
-	if c.ContentType() == "application/x-www-form-urlencoded" {
-		payId := c.PostForm("payId")
-		typeStr := c.PostForm("type")
-		priceStr := c.PostForm("price")
-		signstr := c.PostForm("sign")
-		param := c.PostForm("param")
-		notifyUrl := c.PostForm("notifyUrl")
-		returnUrl := c.PostForm("returnUrl")
-		if payId == "" || typeStr == "" || priceStr == "" || signstr == "" {
-			c.JSON(200, gin.H{
-				"code": -1,
-				"msg":  "param error",
-			})
-			return
-		}
-		typeInt, err := strconv.Atoi(typeStr)
-		if err != nil {
-			c.JSON(200, gin.H{
-				"code": -1,
-				"msg":  "type error",
-			})
-			return
-		}
-		priceFloat, err := strconv.ParseFloat(priceStr, 64)
-		if err != nil {
-			c.JSON(200, gin.H{
-				"code": -1,
-				"msg":  "price error",
-			})
-			return
-		}
-		params = CreateOrderParams{
-			PayId:     payId,
-			Type:      typeInt,
-			Price:     priceFloat,
-			Sign:      signstr,
-			Param:     param,
-			NotifyUrl: notifyUrl,
-			ReturnUrl: returnUrl,
-		}
-		appConfig, err := db.GetAppConfig()
-		if err != nil {
-			c.Error(err)
-			return
-		}
-		// 1. 验证签名
-		sign := hash.GetMD5Hash(payId + param + typeStr + priceStr + appConfig.APISecret)
-		if sign != params.Sign {
-			c.JSON(200, gin.H{
-				"code": -1,
-				"msg":  "sign error",
-			})
-			return
-		}
-	} else {
-		c.JSON(200, gin.H{
-			"code": -1,
-			"msg":  "content-type error",
-		})
-		return
-	}
+    // 初始化参数结构体
+    var params CreateOrderParams
+
+    // 尝试从POST表单获取参数
+    payId := c.DefaultPostForm("payId", "")
+    typeStr := c.DefaultPostForm("type", "")
+    priceStr := c.DefaultPostForm("price", "")
+    signStr := c.DefaultPostForm("sign", "")
+    param := c.DefaultPostForm("param", "")
+    notifyUrl := c.DefaultPostForm("notifyUrl", "")
+    returnUrl := c.DefaultPostForm("returnUrl", "")
+
+    // 如果POST表单中的关键参数为空，尝试从GET请求的Keys中获取
+    if payId == "" || typeStr == "" || priceStr == "" || signStr == "" {
+        payId, _ = c.Get("payId").(string)
+        typeStr, _ = c.Get("type").(string)
+        priceStr, _ = c.Get("price").(string)
+        signStr, _ = c.Get("sign").(string)
+        param, _ = c.Get("param").(string)
+        notifyUrl, _ = c.Get("notifyUrl").(string)
+        returnUrl, _ = c.Get("returnUrl").(string)
+    }
+
+    // 转换类型
+    params.PayId = payId
+    var err error
+    params.Type, err = strconv.Atoi(typeStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "Type conversion error"})
+        return
+    }
+
+    params.Price, err = strconv.ParseFloat(priceStr, 64)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"code": -1, "msg": "Price conversion error"})
+        return
+    }
+
+    params.Sign = signStr
+    params.Param = param
+    params.NotifyUrl = notifyUrl
+    params.ReturnUrl = returnUrl
+
+    // 验证签名逻辑...
+    appConfig, err := db.GetAppConfig()
+    if err != nil {
+        c.Error(err)
+        return
+    }
+    computedSign := hash.GetMD5Hash(payId + param + typeStr + priceStr + appConfig.APISecret)
+    if computedSign != params.Sign {
+        c.JSON(http.StatusOK, gin.H{"code": -1, "msg": "Sign verification failed"})
+        return
+    }
 	// 创建订单
 	// 2. 验证订单是否存在
 	_, err := db.GetPayOrderByPayID(params.PayId)
