@@ -182,6 +182,9 @@ export default {
                     // 如果是管理员密码，使用MD5进行加密
                     if (key === 'adminPwd' && value.trim()) {
                         value = MD5(value).toString();
+                    } else {
+                        // 确保所有非密码值都作为字符串发送
+                        value = value.toString();
                     }
 
                     // 收集待更新的项
