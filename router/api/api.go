@@ -23,6 +23,8 @@ func InitRouter(route *gin.Engine) {
 	routeGroup := route.Group("/api")
 	// 创建订单
 	routeGroup.POST("/order", creatOrderHandler)
+	// 新增GET方式创建订单的路由
+    routeGroup.GET("/createOrder", createOrderGETHandler)
 	// qrcode
 	routeGroup.GET("/qrcode", qrcodeGetHandler)
 	routeGroup.Use(middleware.JSONMiddleware())
