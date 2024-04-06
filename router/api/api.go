@@ -303,13 +303,13 @@ func getOrderStateGetHandler(c *gin.Context) {
 		}
 		return
 	}
-	paramMap := map[string]string{
-		"payId":       order.PayID,
-		"param":       order.Param,
-		"type":        fmt.Sprintf("%d", order.Type),
-		"price":       utils.Float64ToSting(order.Price),
-		"reallyPrice": utils.Float64ToSting(order.ReallyPrice),
-	}
+	//paramMap := map[string]string{
+	//	"payId":       order.PayID,
+	//	"param":       order.Param,
+	//	"type":        fmt.Sprintf("%d", order.Type),
+	//	"price":       utils.Float64ToSting(order.Price),
+	//	"reallyPrice": utils.Float64ToSting(order.ReallyPrice),
+	//}
 	appConfig, err := db.GetAppConfig()
 	if err != nil {
 		c.Error(err)
