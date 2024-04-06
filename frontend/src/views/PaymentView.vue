@@ -57,7 +57,7 @@ export default {
     methods: {
         getOrder() {
             api.getOrder(this.orderID).then(res => {
-                if (res.data.code == 200 {
+                if (res.data.code == 200) {
                     this.price = res.data.data.reallyPrice
                     this.payId = res.data.data.payId
                     this.type = res.data.data.payType
