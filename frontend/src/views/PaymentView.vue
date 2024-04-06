@@ -114,9 +114,11 @@ export default {
                     if (status == -1) {
                         this.msg = '支付超时，请重新下单';
                         this.visible = true;
+                        clearInterval(this.payResultTimer); // 停止轮询
                     } else if (status == 1) {
                         this.msg = '支付成功';
                         this.visible = true;
+                        clearInterval(this.payResultTimer); // 停止轮询
                         setTimeout(() => {
                             window.location.replace(returnUrl);
                         }, 1000)
@@ -134,6 +136,15 @@ export default {
         this.timer = setInterval(this.countDown, 1000);
         // 3.获取支付结果 定时器
         this.payResultTimer = setInterval(this.getPayResult, 1000);
+    },
+    beforeDestroy() {
+        // Here we clear the timers when the component is about to be destroyed
+        if (this.payResultTimer) {
+            clearInterval(this.payResultTimer);
+        }
+        if (this.timer) {
+            clearInterval(this.timer);
+        }
     }
 }
 
