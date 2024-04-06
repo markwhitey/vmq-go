@@ -57,7 +57,7 @@ export default {
     methods: {
         getOrder() {
             api.getOrder(this.orderID).then(res => {
-                if (res.data.code == 1) {
+                if (res.data.code == 200 {
                     this.price = res.data.data.reallyPrice
                     this.payId = res.data.data.payId
                     this.type = res.data.data.payType
@@ -108,7 +108,7 @@ export default {
         // 获取支付结果
         getPayResult() {
             api.getOrderStatus(this.orderID).then(res => {
-                if (res.data.code == 1) {
+                if (res.data.code == 200) {
                     let status = res.data.data.state // -1过期 0未支付 1已支付 
                     let returnUrl = res.data.data.returnUrl // 支付成功后跳转的页面
                     if (status == -1) {
