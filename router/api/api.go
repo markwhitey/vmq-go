@@ -14,7 +14,7 @@ import (
 	"vmq-go/utils/captcha"
 	"vmq-go/utils/hash"
 	"vmq-go/utils/qrcode"
-
+    "vmq-go/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -166,25 +166,31 @@ func processOrder(c *gin.Context, params CreateOrderParams) {
         })
         return
     }
-    timeout := (order.ExpectDate - order.CreateDate) / 1000 / 60 // 分钟
-    c.JSON(200, gin.H{
-        "code": 1,
-        "msg":  "success",
-        "data": gin.H{
-            "payId":       order.PayID,
-            "orderId":     order.OrderID,
-            "payType":     order.Type,
-            "price":       order.Price,
-            "reallyPrice": order.ReallyPrice,
-            "payUrl":      order.PayURL,
-            "isAuto":      order.IsAuto,
-            "state":       order.State,
-            "createDate":  order.CreateDate,
-            "expectDate":  order.ExpectDate,
-            "timeout":     timeout,
-            "redirectUrl": fmt.Sprintf("/payment/%s", order.OrderID),
-        },
-    })
+    // 构建重定向URL
+    redirectURL := fmt.Sprintf("%s/#/payment/%s", config.Conf.BaseURL, order.OrderID)
+
+    // 发送HTTP重定向响应给客户端
+    c.Redirect(http.StatusFound, redirectURL)
+
+//     timeout := (order.ExpectDate - order.CreateDate) / 1000 / 60 // 分钟
+//     c.JSON(200, gin.H{
+//         "code": 1,
+//         "msg":  "success",
+//         "data": gin.H{
+//             "payId":       order.PayID,
+//             "orderId":     order.OrderID,
+//             "payType":     order.Type,
+//             "price":       order.Price,
+//             "reallyPrice": order.ReallyPrice,
+//             "payUrl":      order.PayURL,
+//             "isAuto":      order.IsAuto,
+//             "state":       order.State,
+//             "createDate":  order.CreateDate,
+//             "expectDate":  order.ExpectDate,
+//             "timeout":     timeout,
+//             "redirectUrl": fmt.Sprintf("/payment/%s", order.OrderID),
+//         },
+//     })
 }
 
 func qrcodeGetHandler(c *gin.Context) {

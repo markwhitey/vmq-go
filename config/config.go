@@ -33,6 +33,7 @@ type Config struct {
 	Log      logConfig      `yaml:"log"`  // 日志配置
 	Jwt      jwtConfig      `yaml:"jwt"`  // JWT 配置
 	Database DatabaseConfig `yaml:"db"`   // 数据库配置
+	BaseURL  string         `yaml:"baseURL"`// Vue应用的基础URL
 }
 
 var (

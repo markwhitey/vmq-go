@@ -12,3 +12,4 @@ db:
   user: test
   password: test
   name: test
+baseURL: "https://your-domain.com" # 这里设置基础URL
