@@ -10,6 +10,7 @@ import (
 	"vmq-go/logger"
 	"vmq-go/utils"
 	"vmq-go/utils/hash"
+	"crypto/tls"
 )
 
 // sendEmail
@@ -92,7 +93,11 @@ func Notify(order db.PayOrder) {
 	}
 	params["sign"] = hash.GetMD5Hash(fmt.Sprintf("%s%s%s%s%s", order.PayID, order.Param, fmt.Sprintf("%d", order.Type), utils.Float64ToSting(order.Price), utils.Float64ToSting(order.ReallyPrice)) + appConfig.APISecret)
 	// 发送异步通知 GET  使用net/http
-	httpClient := &http.Client{}
+    	httpClient := &http.Client{
+        	Transport: &http.Transport{
+            		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // 跳过证书验证
+        	},
+    	}
 	var paramsStr string
 	for k, v := range params {
 		paramsStr += fmt.Sprintf("%s=%s&", k, v)
