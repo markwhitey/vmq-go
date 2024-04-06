@@ -316,13 +316,13 @@ func getOrderStateGetHandler(c *gin.Context) {
 		return
 	}
 	// sign := hash.GetMD5Hash(payId + param + typeStr + priceStr + key.VValue)
-	sign := hash.GetMD5Hash(fmt.Sprintf("%s%s%s%s%s", order.PayID, order.Param, fmt.Sprintf("%d", order.Type), utils.Float64ToSting(order.Price), utils.Float64ToSting(order.ReallyPrice)) + appConfig.APISecret)
+	//sign := hash.GetMD5Hash(fmt.Sprintf("%s%s%s%s%s", order.PayID, order.Param, fmt.Sprintf("%d", order.Type), utils.Float64ToSting(order.Price), utils.Float64ToSting(order.ReallyPrice)) + appConfig.APISecret)
 	// 将map转为get参数 用于跳转
-	paramStr := ""
-	for k, v := range paramMap {
-		paramStr += fmt.Sprintf("%s=%s&", k, v)
-	}
-	paramStr += fmt.Sprintf("sign=%s", sign)
+	//paramStr := ""
+	//for k, v := range paramMap {
+	//	paramStr += fmt.Sprintf("%s=%s&", k, v)
+	//}
+	//paramStr += fmt.Sprintf("sign=%s", sign)
 	returnUrl := order.ReturnURL
 	if returnUrl == "" {
 		returnUrl = appConfig.ReturnUrl
@@ -330,7 +330,7 @@ func getOrderStateGetHandler(c *gin.Context) {
 	var state int
 	if order.State >= 1 {
 		state = 1
-		returnUrl = fmt.Sprintf("%s?%s", returnUrl, paramStr)
+		returnUrl = returnUrl //fmt.Sprintf("%s?%s", returnUrl, paramStr)
 	} else {
 		state = order.State
 		returnUrl = ""
