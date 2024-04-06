@@ -118,7 +118,7 @@ export default {
                         this.msg = '支付成功';
                         this.visible = true;
                         setTimeout(() => {
-                            window.location.href = returnUrl
+                            window.location.replace(returnUrl);
                         }, 1000)
                     }
                 }
