@@ -168,7 +168,7 @@ export default {
                     cell: (h, { col, row }) => {
                         // 1698388484 -> 2021-03-31 16:21:24
                         let time = new Date(
-                            row.createDate * 1000 + 8 * 3600 * 1000
+                            row.expectDate * 1000 + 8 * 3600 * 1000
                         ).toISOString();
                         return h("span", time.slice(0, 10) + " " + time.slice(11, 19));
                     },
