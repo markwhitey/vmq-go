@@ -88,28 +88,6 @@ func AddPayOrder(payId string, type_ int, price float64, param string, notifyUrl
 		return err
 	}
 	expectDate := createDate + int64(appConfig.Expire*60)
-	payqrcode, err := GetPayQrcodeByTypeAndPrice(type_, price)
-	if err != nil {
-		if err.Error() == "record not found" {
-			payqrcode.ID = 0
-		} else {
-			return err
-		}
-	}
-	var payUrl string
-	var isAuto int
-	if payqrcode.ID == 0 {
-		switch type_ {
-		case 1:
-			payUrl = appConfig.WechatPay
-		case 2:
-			payUrl = appConfig.AliPay
-		}
-		isAuto = 0
-	} else {
-		payUrl = payqrcode.PayURL
-		isAuto = 1
-	}
 	// 取未支付的订单 过滤器为 price type 并以真实支付金额升序排序 取出所有的真实支付金额
 	var reallyPriceList []float64
 	err = DB.Model(&PayOrder{}).Where("state = 0 AND price = ? AND type = ?", price, type_).Order("really_price asc").Pluck("really_price", &reallyPriceList).Error
@@ -146,6 +124,29 @@ func AddPayOrder(payId string, type_ int, price float64, param string, notifyUrl
 	}
 	if len(reallyPriceList) >= appConfig.OrderMaxNum || reallyPrice < 0.01 {
 		return fmt.Errorf("订单已满, 请稍后再试")
+	}
+	//生成实际金额的payurl
+	payqrcode, err := GetPayQrcodeByTypeAndPrice(type_, reallyPrice)
+	if err != nil {
+		if err.Error() == "record not found" {
+			payqrcode.ID = 0
+		} else {
+			return err
+		}
+	}
+	var payUrl string
+	var isAuto int
+	if payqrcode.ID == 0 {
+		switch type_ {
+		case 1:
+			payUrl = appConfig.WechatPay
+		case 2:
+			payUrl = appConfig.AliPay
+		}
+		isAuto = 0
+	} else {
+		payUrl = payqrcode.PayURL
+		isAuto = 1
 	}
 	payOrder := PayOrder{
 		PayID:       payId,
